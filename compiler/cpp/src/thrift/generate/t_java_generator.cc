@@ -1316,16 +1316,6 @@ void t_java_generator::generate_java_struct_definition(ofstream& out,
       indent(out) << "private java.util.BitSet __isset_bit_vector = new java.util.BitSet(" << i << ");" << endl;
       break;
     }
-
-    if (optionals > 0) {
-      std::string output_string = "private static final _Fields optionals[] = {";
-      for (m_iter = members.begin(); m_iter != members.end(); ++m_iter) {
-        if ((*m_iter)->get_req() == t_field::T_OPTIONAL) {
-          output_string = output_string + "_Fields." + constant_name((*m_iter)->get_name()) + ",";
-        }
-      }
-      indent(out) << output_string.substr(0, output_string.length() - 1) << "};" << endl;
-    }
   }
 
   bool all_optional_members = true;
@@ -1349,44 +1339,6 @@ void t_java_generator::generate_java_struct_definition(ofstream& out,
   }
   indent_down();
   indent(out) << "}" << endl << endl;
-
-  if (!members.empty() && !all_optional_members) {
-    // Full constructor for all fields
-    indent(out) << "public " << tstruct->get_name() << "(" << endl;
-    indent_up();
-    bool first = true;
-    for (m_iter = members.begin(); m_iter != members.end(); ++m_iter) {
-      if ((*m_iter)->get_req() != t_field::T_OPTIONAL) {
-        if (!first) {
-          out << "," << endl;
-        }
-        first = false;
-        indent(out) << type_name((*m_iter)->get_type()) << " " << (*m_iter)->get_name();
-      }
-    }
-    out << ")" << endl;
-    indent_down();
-    indent(out) << "{" << endl;
-    indent_up();
-    indent(out) << "this();" << endl;
-    for (m_iter = members.begin(); m_iter != members.end(); ++m_iter) {
-      if ((*m_iter)->get_req() != t_field::T_OPTIONAL) {
-        t_type* type = get_true_type((*m_iter)->get_type());
-        if (type->is_base_type() && ((t_base_type*)type)->is_binary()) {
-          indent(out) << "this." << (*m_iter)->get_name()
-                      << " = org.apache.thrift.TBaseHelper.copyBinary(" << (*m_iter)->get_name()
-                      << ");" << endl;
-        } else {
-          indent(out) << "this." << (*m_iter)->get_name() << " = " << (*m_iter)->get_name() << ";"
-                      << endl;
-        }
-        generate_isset_set(out, (*m_iter), "");
-      }
-    }
-
-    indent_down();
-    indent(out) << "}" << endl << endl;
-  }
 
   // copy constructor
   indent(out) << "/**" << endl;
