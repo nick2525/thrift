@@ -157,11 +157,7 @@ public:
   void generate_java_validator(std::ofstream& out, t_struct* tstruct);
   void generate_java_struct_result_writer(std::ofstream& out, t_struct* tstruct);
   void generate_java_struct_writer(std::ofstream& out, t_struct* tstruct);
-  void generate_java_struct_tostring(std::ofstream& out, t_struct* tstruct);
   void generate_java_struct_clear(std::ofstream& out, t_struct* tstruct);
-  void generate_java_struct_write_object(std::ofstream& out, t_struct* tstruct);
-  void generate_java_struct_read_object(std::ofstream& out, t_struct* tstruct);
-  void generate_java_meta_data_map(std::ofstream& out, t_struct* tstruct);
   void generate_field_value_meta_data(std::ofstream& out, t_type* type);
   std::string get_java_type_string(t_type* type);
   void generate_java_struct_field_by_id(ofstream& out, t_struct* tstruct);
@@ -204,8 +200,6 @@ public:
   void generate_check_type(ofstream& out, t_struct* tstruct);
   void generate_standard_scheme_read_value(ofstream& out, t_struct* tstruct);
   void generate_standard_scheme_write_value(ofstream& out, t_struct* tstruct);
-  void generate_tuple_scheme_read_value(ofstream& out, t_struct* tstruct);
-  void generate_tuple_scheme_write_value(ofstream& out, t_struct* tstruct);
   void generate_get_field_desc(ofstream& out, t_struct* tstruct);
   void generate_get_struct_desc(ofstream& out, t_struct* tstruct);
   void generate_get_field_name(ofstream& out, t_struct* tstruct);
@@ -217,10 +211,6 @@ public:
   void generate_standard_writer(ofstream& out, t_struct* tstruct, bool is_result);
   void generate_standard_reader(ofstream& out, t_struct* tstruct);
   void generate_java_struct_standard_scheme(ofstream& out, t_struct* tstruct, bool is_result);
-
-  void generate_java_struct_tuple_scheme(ofstream& out, t_struct* tstruct);
-  void generate_java_struct_tuple_reader(ofstream& out, t_struct* tstruct);
-  void generate_java_struct_tuple_writer(ofstream& out, t_struct* tstruct);
 
   void generate_java_scheme_lookup(ofstream& out);
 
@@ -444,10 +434,6 @@ void t_java_generator::generate_enum(t_enum* tenum) {
 
   // Comment and package it
   f_enum << autogen_comment() << java_package() << endl;
-
-  // Add java imports
-  f_enum << string() + "import java.util.Map;\n" + "import java.util.HashMap;\n"
-            + "import org.apache.thrift.TEnum;" << endl << endl;
 
   generate_java_doc(f_enum, tenum);
   if (is_deprecated) {
@@ -786,8 +772,6 @@ void t_java_generator::generate_java_union(t_struct* tstruct) {
 
   f_struct << endl;
 
-  generate_java_meta_data_map(f_struct, tstruct);
-
   generate_union_constructor(f_struct, tstruct);
 
   f_struct << endl;
@@ -815,12 +799,6 @@ void t_java_generator::generate_java_union(t_struct* tstruct) {
   generate_union_hashcode(f_struct, tstruct);
 
   f_struct << endl;
-
-  generate_java_struct_write_object(f_struct, tstruct);
-
-  f_struct << endl;
-
-  generate_java_struct_read_object(f_struct, tstruct);
 
   f_struct << endl;
 
@@ -854,11 +832,6 @@ void t_java_generator::generate_union_constructor(ofstream& out, t_struct* tstru
   indent(out) << "public " << type_name(tstruct) << "(_Fields setField, java.lang.Object value) {" << endl;
   indent(out) << "  super(setField, value);" << endl;
   indent(out) << "}" << endl << endl;
-
-  indent(out) << "public " << type_name(tstruct) << "(" << type_name(tstruct) << " other) {"
-              << endl;
-  indent(out) << "  super(other);" << endl;
-  indent(out) << "}" << endl;
 
   indent(out) << "public " << tstruct->get_name() << " deepCopy() {" << endl;
   indent(out) << "  return new " << tstruct->get_name() << "(this);" << endl;
@@ -1008,10 +981,6 @@ void t_java_generator::generate_union_abstract_methods(ofstream& out, t_struct* 
   out << endl;
   generate_standard_scheme_write_value(out, tstruct);
   out << endl;
-  generate_tuple_scheme_read_value(out, tstruct);
-  out << endl;
-  generate_tuple_scheme_write_value(out, tstruct);
-  out << endl;
   generate_get_field_desc(out, tstruct);
   out << endl;
   generate_get_struct_desc(out, tstruct);
@@ -1119,89 +1088,6 @@ void t_java_generator::generate_standard_scheme_write_value(ofstream& out, t_str
   indent(out) << "@Override" << endl;
   indent(out) << "protected void standardSchemeWriteValue(org.apache.thrift.protocol.TProtocol "
                  "oprot) throws org.apache.thrift.TException {" << endl;
-
-  indent_up();
-
-  indent(out) << "switch (setField_) {" << endl;
-  indent_up();
-
-  const vector<t_field*>& members = tstruct->get_members();
-  vector<t_field*>::const_iterator m_iter;
-
-  for (m_iter = members.begin(); m_iter != members.end(); ++m_iter) {
-    t_field* field = (*m_iter);
-
-    indent(out) << "case " << constant_name(field->get_name()) << ":" << endl;
-    indent_up();
-    indent(out) << type_name(field->get_type(), true, false) << " " << field->get_name() << " = ("
-                << type_name(field->get_type(), true, false) << ")value_;" << endl;
-    generate_serialize_field(out, field, "");
-    indent(out) << "return;" << endl;
-    indent_down();
-  }
-
-  indent(out) << "default:" << endl;
-  indent(out) << "  throw new java.lang.IllegalStateException(\"Cannot write union with unknown field \" + "
-                 "setField_);" << endl;
-
-  indent_down();
-  indent(out) << "}" << endl;
-
-  indent_down();
-
-  indent(out) << "}" << endl;
-}
-
-void t_java_generator::generate_tuple_scheme_read_value(ofstream& out, t_struct* tstruct) {
-  indent(out) << "@Override" << endl;
-  indent(out) << "protected java.lang.Object tupleSchemeReadValue(org.apache.thrift.protocol.TProtocol "
-                 "iprot, short fieldID) throws org.apache.thrift.TException {" << endl;
-
-  indent_up();
-
-  indent(out) << "_Fields setField = _Fields.findByThriftId(fieldID);" << endl;
-  indent(out) << "if (setField != null) {" << endl;
-  indent_up();
-  indent(out) << "switch (setField) {" << endl;
-  indent_up();
-
-  const vector<t_field*>& members = tstruct->get_members();
-  vector<t_field*>::const_iterator m_iter;
-
-  for (m_iter = members.begin(); m_iter != members.end(); ++m_iter) {
-    t_field* field = (*m_iter);
-
-    indent(out) << "case " << constant_name(field->get_name()) << ":" << endl;
-    indent_up();
-    indent(out) << type_name(field->get_type(), true, false) << " " << field->get_name() << ";"
-                << endl;
-    generate_deserialize_field(out, field, "");
-    indent(out) << "return " << field->get_name() << ";" << endl;
-    indent_down();
-  }
-
-  indent(out) << "default:" << endl;
-  indent(out) << "  throw new java.lang.IllegalStateException(\"setField wasn't null, but didn't match any "
-                 "of the case statements!\");" << endl;
-
-  indent_down();
-  indent(out) << "}" << endl;
-
-  indent_down();
-  indent(out) << "} else {" << endl;
-  indent_up();
-  indent(out) << "throw new org.apache.thrift.protocol.TProtocolException(\"Couldn't find a field with field id \" + fieldID);"
-              << endl;
-  indent_down();
-  indent(out) << "}" << endl;
-  indent_down();
-  indent(out) << "}" << endl;
-}
-
-void t_java_generator::generate_tuple_scheme_write_value(ofstream& out, t_struct* tstruct) {
-  indent(out) << "@Override" << endl;
-  indent(out) << "protected void tupleSchemeWriteValue(org.apache.thrift.protocol.TProtocol oprot) "
-                 "throws org.apache.thrift.TException {" << endl;
 
   indent_up();
 
@@ -1356,7 +1242,7 @@ void t_java_generator::generate_java_struct_definition(ofstream& out,
     out << "extends org.apache.thrift.TException ";
   }
   out << "implements org.apache.thrift.TBase<" << tstruct->get_name() << ", " << tstruct->get_name()
-      << "._Fields>, java.io.Serializable, Cloneable, Comparable<" << tstruct->get_name() << ">";
+      << "._Fields>, java.io.Serializable, Cloneable";
 
   if (android_style_) {
     out << ", android.os.Parcelable";
@@ -1441,8 +1327,6 @@ void t_java_generator::generate_java_struct_definition(ofstream& out,
       indent(out) << output_string.substr(0, output_string.length() - 1) << "};" << endl;
     }
   }
-
-  generate_java_meta_data_map(out, tstruct);
 
   bool all_optional_members = true;
 
@@ -1574,14 +1458,9 @@ void t_java_generator::generate_java_struct_definition(ofstream& out,
   } else {
     generate_java_struct_writer(out, tstruct);
   }
-  generate_java_struct_tostring(out, tstruct);
   generate_java_validator(out, tstruct);
 
-  generate_java_struct_write_object(out, tstruct);
-  generate_java_struct_read_object(out, tstruct);
-
   generate_java_struct_standard_scheme(out, tstruct, is_result);
-  generate_java_struct_tuple_scheme(out, tstruct);
   generate_java_scheme_lookup(out);
 
   scope_down(out);
@@ -2487,131 +2366,6 @@ void t_java_generator::generate_java_bean_boilerplate(ofstream& out, t_struct* t
     indent_down();
     indent(out) << "}" << endl << endl;
   }
-}
-
-/**
- * Generates a toString() method for the given struct
- *
- * @param tstruct The struct definition
- */
-void t_java_generator::generate_java_struct_tostring(ofstream& out, t_struct* tstruct) {
-  out << indent() << "@Override" << endl << indent() << "public java.lang.String toString() {" << endl;
-  indent_up();
-
-  out << indent() << "java.lang.StringBuilder sb = new java.lang.StringBuilder(\"" << tstruct->get_name() << "(\");"
-      << endl;
-  out << indent() << "boolean first = true;" << endl << endl;
-
-  const vector<t_field*>& fields = tstruct->get_members();
-  vector<t_field*>::const_iterator f_iter;
-  bool first = true;
-  for (f_iter = fields.begin(); f_iter != fields.end(); ++f_iter) {
-    bool could_be_unset = (*f_iter)->get_req() == t_field::T_OPTIONAL;
-    if (could_be_unset) {
-      indent(out) << "if (" << generate_isset_check(*f_iter) << ") {" << endl;
-      indent_up();
-    }
-
-    t_field* field = (*f_iter);
-
-    if (!first) {
-      indent(out) << "if (!first) sb.append(\", \");" << endl;
-    }
-    indent(out) << "sb.append(\"" << (*f_iter)->get_name() << ":\");" << endl;
-    bool can_be_null = type_can_be_null(field->get_type());
-    if (can_be_null) {
-      indent(out) << "if (this." << (*f_iter)->get_name() << " == null) {" << endl;
-      indent(out) << "  sb.append(\"null\");" << endl;
-      indent(out) << "} else {" << endl;
-      indent_up();
-    }
-
-    if (get_true_type(field->get_type())->is_base_type()
-        && ((t_base_type*)(get_true_type(field->get_type())))->is_binary()) {
-      indent(out) << "org.apache.thrift.TBaseHelper.toString(this." << field->get_name() << ", sb);"
-                  << endl;
-    } else if ((field->get_type()->is_set())
-               && (get_true_type(((t_set*)field->get_type())->get_elem_type())->is_base_type())
-               && (((t_base_type*)get_true_type(((t_set*)field->get_type())->get_elem_type()))
-                       ->is_binary())) {
-      indent(out) << "org.apache.thrift.TBaseHelper.toString(this." << field->get_name() << ", sb);"
-                  << endl;
-    } else if ((field->get_type()->is_list())
-               && (get_true_type(((t_list*)field->get_type())->get_elem_type())->is_base_type())
-               && (((t_base_type*)get_true_type(((t_list*)field->get_type())->get_elem_type()))
-                       ->is_binary())) {
-      indent(out) << "org.apache.thrift.TBaseHelper.toString(this." << field->get_name() << ", sb);"
-                  << endl;
-    } else {
-      indent(out) << "sb.append(this." << (*f_iter)->get_name() << ");" << endl;
-    }
-
-    if (can_be_null) {
-      indent_down();
-      indent(out) << "}" << endl;
-    }
-    indent(out) << "first = false;" << endl;
-
-    if (could_be_unset) {
-      indent_down();
-      indent(out) << "}" << endl;
-    }
-    first = false;
-  }
-  out << indent() << "sb.append(\")\");" << endl << indent() << "return sb.toString();" << endl;
-
-  indent_down();
-  indent(out) << "}" << endl << endl;
-}
-
-/**
- * Generates a static map with meta data to store information such as fieldID to
- * fieldName mapping
- *
- * @param tstruct The struct definition
- */
-void t_java_generator::generate_java_meta_data_map(ofstream& out, t_struct* tstruct) {
-  const vector<t_field*>& fields = tstruct->get_members();
-  vector<t_field*>::const_iterator f_iter;
-
-  // Static Map with fieldID -> org.apache.thrift.meta_data.FieldMetaData mappings
-  indent(out)
-      << "public static final java.util.Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;"
-      << endl;
-  indent(out) << "static {" << endl;
-  indent_up();
-
-  indent(out) << "java.util.Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new "
-                 "java.util.EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);"
-              << endl;
-
-  // Populate map
-  for (f_iter = fields.begin(); f_iter != fields.end(); ++f_iter) {
-    t_field* field = *f_iter;
-    std::string field_name = field->get_name();
-    indent(out) << "tmpMap.put(_Fields." << constant_name(field_name)
-                << ", new org.apache.thrift.meta_data.FieldMetaData(\"" << field_name << "\", ";
-
-    // Set field requirement type (required, optional, etc.)
-    if (field->get_req() == t_field::T_REQUIRED) {
-      out << "org.apache.thrift.TFieldRequirementType.REQUIRED, ";
-    } else if (field->get_req() == t_field::T_OPTIONAL) {
-      out << "org.apache.thrift.TFieldRequirementType.OPTIONAL, ";
-    } else {
-      out << "org.apache.thrift.TFieldRequirementType.DEFAULT, ";
-    }
-
-    // Create value meta data
-    generate_field_value_meta_data(out, field->get_type());
-    out << "));" << endl;
-  }
-
-  indent(out) << "metaDataMap = java.util.Collections.unmodifiableMap(tmpMap);" << endl;
-
-  indent(out) << "org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap("
-              << type_name(tstruct) << ".class, metaDataMap);" << endl;
-  indent_down();
-  indent(out) << "}" << endl << endl;
 }
 
 /**
@@ -4709,8 +4463,6 @@ void t_java_generator::generate_field_descs(ofstream& out, t_struct* tstruct) {
 void t_java_generator::generate_scheme_map(ofstream& out, t_struct* tstruct) {
   indent(out) << "private static final org.apache.thrift.scheme.SchemeFactory STANDARD_SCHEME_FACTORY = new "
       << tstruct->get_name() << "StandardSchemeFactory();" << endl;
-  indent(out) << "private static final org.apache.thrift.scheme.SchemeFactory TUPLE_SCHEME_FACTORY = new "
-      << tstruct->get_name() << "TupleSchemeFactory();" << endl;
 }
 
 void t_java_generator::generate_field_name_constants(ofstream& out, t_struct* tstruct) {
@@ -4769,25 +4521,6 @@ void t_java_generator::generate_field_name_constants(ofstream& out, t_struct* ts
   indent_down();
   indent(out) << "}" << endl << endl;
 
-  indent(out) << "/**" << endl;
-  indent(out) << " * Find the _Fields constant that matches fieldId, throwing an exception" << endl;
-  indent(out) << " * if it is not found." << endl;
-  indent(out) << " */" << endl;
-  indent(out) << "public static _Fields findByThriftIdOrThrow(int fieldId) {" << endl;
-  indent(out) << "  _Fields fields = findByThriftId(fieldId);" << endl;
-  indent(out) << "  if (fields == null) throw new java.lang.IllegalArgumentException(\"Field \" + fieldId + "
-                 "\" doesn't exist!\");" << endl;
-  indent(out) << "  return fields;" << endl;
-  indent(out) << "}" << endl << endl;
-
-  indent(out) << "/**" << endl;
-  indent(out) << " * Find the _Fields constant that matches name, or null if its not found."
-              << endl;
-  indent(out) << " */" << endl;
-  indent(out) << "public static _Fields findByName(java.lang.String name) {" << endl;
-  indent(out) << "  return byName.get(name);" << endl;
-  indent(out) << "}" << endl << endl;
-
   indent(out) << "private final short _thriftId;" << endl;
   indent(out) << "private final java.lang.String _fieldName;" << endl << endl;
 
@@ -4844,107 +4577,6 @@ void t_java_generator::generate_java_struct_clear(std::ofstream& out, t_struct* 
     indent(out) << "@Override" << endl;
   }
   indent(out) << "public void clear() {" << endl;
-
-  const vector<t_field*>& members = tstruct->get_members();
-  vector<t_field*>::const_iterator m_iter;
-
-  indent_up();
-  for (m_iter = members.begin(); m_iter != members.end(); ++m_iter) {
-    t_field* field = *m_iter;
-    t_type* t = get_true_type(field->get_type());
-
-    if (field->get_value() != NULL) {
-      print_const_value(out, "this." + field->get_name(), t, field->get_value(), true, true);
-      continue;
-    }
-
-    if (type_can_be_null(t)) {
-
-      if (reuse_objects_ && (t->is_container() || t->is_struct())) {
-        indent(out) << "if (this." << field->get_name() << " != null) {" << endl;
-        indent_up();
-        indent(out) << "this." << field->get_name() << ".clear();" << endl;
-        indent_down();
-        indent(out) << "}" << endl;
-
-      } else {
-
-        indent(out) << "this." << field->get_name() << " = null;" << endl;
-      }
-      continue;
-    }
-
-    // must be a base type
-    // means it also needs to be explicitly unset
-    indent(out) << "set" << get_cap_name(field->get_name()) << get_cap_name("isSet") << "(false);"
-                << endl;
-    t_base_type* base_type = (t_base_type*)t;
-
-    switch (base_type->get_base()) {
-    case t_base_type::TYPE_I8:
-    case t_base_type::TYPE_I16:
-    case t_base_type::TYPE_I32:
-    case t_base_type::TYPE_I64:
-      indent(out) << "this." << field->get_name() << " = 0;" << endl;
-      break;
-    case t_base_type::TYPE_DOUBLE:
-      indent(out) << "this." << field->get_name() << " = 0.0;" << endl;
-      break;
-    case t_base_type::TYPE_BOOL:
-      indent(out) << "this." << field->get_name() << " = false;" << endl;
-      break;
-    default:
-      throw "unsupported type: " + base_type->get_name() + " for field " + field->get_name();
-    }
-  }
-  indent_down();
-
-  indent(out) << "}" << endl << endl;
-}
-
-// generates java method to serialize (in the Java sense) the object
-void t_java_generator::generate_java_struct_write_object(ofstream& out, t_struct* tstruct) {
-  (void)tstruct;
-  indent(out)
-      << "private void writeObject(java.io.ObjectOutputStream out) throws java.io.IOException {"
-      << endl;
-  indent(out) << "  try {" << endl;
-  indent(out) << "    write(new org.apache.thrift.protocol.TCompactProtocol(new "
-                 "org.apache.thrift.transport.TIOStreamTransport(out)));" << endl;
-  indent(out) << "  } catch (org.apache.thrift.TException te) {" << endl;
-  indent(out) << "    throw new java.io.IOException(te" << (android_legacy_ ? ".getMessage()" : "")
-              << ");" << endl;
-  indent(out) << "  }" << endl;
-  indent(out) << "}" << endl << endl;
-}
-
-// generates java method to serialize (in the Java sense) the object
-void t_java_generator::generate_java_struct_read_object(ofstream& out, t_struct* tstruct) {
-  indent(out) << "private void readObject(java.io.ObjectInputStream in) throws "
-                 "java.io.IOException, java.lang.ClassNotFoundException {" << endl;
-  indent(out) << "  try {" << endl;
-  if (!tstruct->is_union()) {
-    switch (needs_isset(tstruct)) {
-    case ISSET_NONE:
-      break;
-    case ISSET_PRIMITIVE:
-      indent(out) << "    // it doesn't seem like you should have to do this, but java "
-                     "serialization is wacky, and doesn't call the default constructor." << endl;
-      indent(out) << "    __isset_bitfield = 0;" << endl;
-      break;
-    case ISSET_BITSET:
-      indent(out) << "    // it doesn't seem like you should have to do this, but java "
-                     "serialization is wacky, and doesn't call the default constructor." << endl;
-      indent(out) << "    __isset_bit_vector = new java.util.BitSet(1);" << endl;
-      break;
-    }
-  }
-  indent(out) << "    read(new org.apache.thrift.protocol.TCompactProtocol(new "
-                 "org.apache.thrift.transport.TIOStreamTransport(in)));" << endl;
-  indent(out) << "  } catch (org.apache.thrift.TException te) {" << endl;
-  indent(out) << "    throw new java.io.IOException(te" << (android_legacy_ ? ".getMessage()" : "")
-              << ");" << endl;
-  indent(out) << "  }" << endl;
   indent(out) << "}" << endl << endl;
 }
 
@@ -5116,130 +4748,11 @@ void t_java_generator::generate_java_struct_standard_scheme(ofstream& out,
   out << indent() << "}" << endl << endl;
 }
 
-void t_java_generator::generate_java_struct_tuple_reader(ofstream& out, t_struct* tstruct) {
-  indent(out) << "@Override" << endl;
-  indent(out) << "public void read(org.apache.thrift.protocol.TProtocol prot, "
-              << tstruct->get_name() << " struct) throws org.apache.thrift.TException {" << endl;
-  indent_up();
-  indent(out) << "org.apache.thrift.protocol.TTupleProtocol iprot = (org.apache.thrift.protocol.TTupleProtocol) prot;" << endl;
-  int optional_count = 0;
-  const vector<t_field*>& fields = tstruct->get_members();
-  vector<t_field*>::const_iterator f_iter;
-  for (f_iter = fields.begin(); f_iter != fields.end(); ++f_iter) {
-    if ((*f_iter)->get_req() == t_field::T_OPTIONAL
-        || (*f_iter)->get_req() == t_field::T_OPT_IN_REQ_OUT) {
-      optional_count++;
-    }
-    if ((*f_iter)->get_req() == t_field::T_REQUIRED) {
-      generate_deserialize_field(out, (*f_iter), "struct.", false);
-      indent(out) << "struct.set" << get_cap_name((*f_iter)->get_name()) << get_cap_name("isSet")
-                  << "(true);" << endl;
-    }
-  }
-  if (optional_count > 0) {
-    indent(out) << "java.util.BitSet incoming = iprot.readBitSet(" << optional_count << ");" << endl;
-    int i = 0;
-    for (f_iter = fields.begin(); f_iter != fields.end(); ++f_iter) {
-      if ((*f_iter)->get_req() == t_field::T_OPTIONAL
-          || (*f_iter)->get_req() == t_field::T_OPT_IN_REQ_OUT) {
-        indent(out) << "if (incoming.get(" << i << ")) {" << endl;
-        indent_up();
-        generate_deserialize_field(out, (*f_iter), "struct.", false);
-        indent(out) << "struct.set" << get_cap_name((*f_iter)->get_name()) << get_cap_name("isSet")
-                    << "(true);" << endl;
-        indent_down();
-        indent(out) << "}" << endl;
-        i++;
-      }
-    }
-  }
-  indent_down();
-  indent(out) << "}" << endl;
-}
-
-void t_java_generator::generate_java_struct_tuple_writer(ofstream& out, t_struct* tstruct) {
-  indent(out) << "@Override" << endl;
-  indent(out) << "public void write(org.apache.thrift.protocol.TProtocol prot, "
-              << tstruct->get_name() << " struct) throws org.apache.thrift.TException {" << endl;
-  indent_up();
-  indent(out) << "org.apache.thrift.protocol.TTupleProtocol oprot = (org.apache.thrift.protocol.TTupleProtocol) prot;" << endl;
-
-  const vector<t_field*>& fields = tstruct->get_members();
-  vector<t_field*>::const_iterator f_iter;
-  bool has_optional = false;
-  int optional_count = 0;
-  for (f_iter = fields.begin(); f_iter != fields.end(); ++f_iter) {
-    if ((*f_iter)->get_req() == t_field::T_OPTIONAL
-        || (*f_iter)->get_req() == t_field::T_OPT_IN_REQ_OUT) {
-      optional_count++;
-      has_optional = true;
-    }
-    if ((*f_iter)->get_req() == t_field::T_REQUIRED) {
-      generate_serialize_field(out, (*f_iter), "struct.", false);
-    }
-  }
-  if (has_optional) {
-    indent(out) << "java.util.BitSet optionals = new java.util.BitSet();" << endl;
-    int i = 0;
-    for (f_iter = fields.begin(); f_iter != fields.end(); ++f_iter) {
-      if ((*f_iter)->get_req() == t_field::T_OPTIONAL
-          || (*f_iter)->get_req() == t_field::T_OPT_IN_REQ_OUT) {
-        indent(out) << "if (struct." << generate_isset_check((*f_iter)) << ") {" << endl;
-        indent_up();
-        indent(out) << "optionals.set(" << i << ");" << endl;
-        indent_down();
-        indent(out) << "}" << endl;
-        i++;
-      }
-    }
-
-    indent(out) << "oprot.writeBitSet(optionals, " << optional_count << ");" << endl;
-    int j = 0;
-    for (f_iter = fields.begin(); f_iter != fields.end(); ++f_iter) {
-      if ((*f_iter)->get_req() == t_field::T_OPTIONAL
-          || (*f_iter)->get_req() == t_field::T_OPT_IN_REQ_OUT) {
-        indent(out) << "if (struct." << generate_isset_check(*f_iter) << ") {" << endl;
-        indent_up();
-        generate_serialize_field(out, (*f_iter), "struct.", false);
-        indent_down();
-        indent(out) << "}" << endl;
-        j++;
-      }
-    }
-  }
-  indent_down();
-  indent(out) << "}" << endl;
-}
-
-void t_java_generator::generate_java_struct_tuple_scheme(ofstream& out, t_struct* tstruct) {
-  indent(out) << "private static class " << tstruct->get_name()
-              << "TupleSchemeFactory implements org.apache.thrift.scheme.SchemeFactory {" << endl;
-  indent_up();
-  indent(out) << "public " << tstruct->get_name() << "TupleScheme getScheme() {" << endl;
-  indent_up();
-  indent(out) << "return new " << tstruct->get_name() << "TupleScheme();" << endl;
-  indent_down();
-  indent(out) << "}" << endl;
-  indent_down();
-  indent(out) << "}" << endl << endl;
-  out << indent() << "private static class " << tstruct->get_name()
-      << "TupleScheme extends org.apache.thrift.scheme.TupleScheme<" << tstruct->get_name() << "> {" << endl << endl;
-  indent_up();
-  generate_java_struct_tuple_writer(out, tstruct);
-  out << endl;
-  generate_java_struct_tuple_reader(out, tstruct);
-  indent_down();
-  out << indent() << "}" << endl << endl;
-}
-
 void t_java_generator::generate_java_scheme_lookup(ofstream& out) {
   indent(out) << "private static <S extends org.apache.thrift.scheme.IScheme> S scheme("
       << "org.apache.thrift.protocol.TProtocol proto) {" << endl;
   indent_up();
-  indent(out) << "return (org.apache.thrift.scheme.StandardScheme.class.equals(proto.getScheme()) "
-      << "? STANDARD_SCHEME_FACTORY "
-      << ": TUPLE_SCHEME_FACTORY"
-      << ").getScheme();" << endl;
+  indent(out) << "return STANDARD_SCHEME_FACTORY.getScheme();" << endl;
   indent_down();
   indent(out) << "}" << endl;
 }
