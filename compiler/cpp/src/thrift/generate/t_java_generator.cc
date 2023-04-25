@@ -1708,7 +1708,9 @@ void t_java_generator::generate_java_struct_equality(ofstream& out, t_struct* ts
   indent_up();
   indent(out) << "int hashCode = 1;" << endl;
 
-  for (m_iter = members.begin(); m_iter != members.end(); ++m_iter) {
+  int max_iterations = 1;
+  m_iter = members.begin();
+  for (int i = 0; i < max_iterations && m_iter != members.end(); ++i, ++m_iter) {
     out << endl;
 
     t_type* t = get_true_type((*m_iter)->get_type());
@@ -1773,33 +1775,6 @@ void t_java_generator::generate_java_struct_compare_to(ofstream& out, t_struct* 
   indent(out) << "@Override" << endl;
   indent(out) << "public int compareTo(" << type_name(tstruct) << " other) {" << endl;
   indent_up();
-
-  indent(out) << "if (!getClass().equals(other.getClass())) {" << endl;
-  indent(out) << "  return getClass().getName().compareTo(other.getClass().getName());" << endl;
-  indent(out) << "}" << endl;
-  out << endl;
-
-  indent(out) << "int lastComparison = 0;" << endl;
-  out << endl;
-
-  const vector<t_field*>& members = tstruct->get_members();
-  vector<t_field*>::const_iterator m_iter;
-  for (m_iter = members.begin(); m_iter != members.end(); ++m_iter) {
-    t_field* field = *m_iter;
-    indent(out) << "lastComparison = java.lang.Boolean.valueOf(" << generate_isset_check(field)
-                << ").compareTo(other." << generate_isset_check(field) << ");" << endl;
-    indent(out) << "if (lastComparison != 0) {" << endl;
-    indent(out) << "  return lastComparison;" << endl;
-    indent(out) << "}" << endl;
-
-    indent(out) << "if (" << generate_isset_check(field) << ") {" << endl;
-    indent(out) << "  lastComparison = org.apache.thrift.TBaseHelper.compareTo(this."
-                << field->get_name() << ", other." << field->get_name() << ");" << endl;
-    indent(out) << "  if (lastComparison != 0) {" << endl;
-    indent(out) << "    return lastComparison;" << endl;
-    indent(out) << "  }" << endl;
-    indent(out) << "}" << endl;
-  }
 
   indent(out) << "return 0;" << endl;
 
